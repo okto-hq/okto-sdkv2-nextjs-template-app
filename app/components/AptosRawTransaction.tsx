@@ -383,7 +383,7 @@ function AptosRawTransaction() {
     return (
         <main className="flex min-h-screen flex-col items-center p-6 md:p-12 bg-gray-900 w-full">
             <button
-                onClick={() => navigate.push("/")}
+                onClick={() => navigate.push("/home")}
                 className="w-fit py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors mb-8"
             >
                 Home

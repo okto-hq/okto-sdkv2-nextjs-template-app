@@ -71,6 +71,7 @@ function TransferNFT() {
   const [nftId, setNftId] = useState<string>("");
   const [recipientWalletAddress, setRecipientWalletAddress] =
     useState<string>("");
+  const [feePayer, setFeePayer] = useState<string>("");
   const [amount, setAmount] = useState<string>("1");
   const [type, setType] = useState<string>("ERC721");
   const [balance, setBalance] = useState<string>("");
@@ -102,6 +103,7 @@ function TransferNFT() {
     setCollectionAddress("");
     setNftId("");
     setRecipientWalletAddress("");
+    setFeePayer("");
     setAmount("1");
     setType("ERC721");
     setBalance("");
@@ -177,6 +179,10 @@ function TransferNFT() {
     amount: number;
     nftType: "ERC721" | "ERC1155";
   } => {
+    if (selectedChain && sponsorshipEnabled) {
+      if (!feePayer || !feePayer.startsWith("0x"))
+        throw new Error("Please enter a valid feePayer address");
+    }
     if (
       !selectedChain ||
       !collectionAddress ||
@@ -251,7 +257,16 @@ function TransferNFT() {
 
     try {
       const transferParams = validateFormData();
-      const jobId = await nftTransferMain(oktoClient, transferParams);
+      let jobId;
+      if (selectedChain && sponsorshipEnabled) {
+        jobId = await nftTransferMain(
+          oktoClient,
+          transferParams,
+          feePayer as Address
+        );
+      } else {
+        jobId = await nftTransferMain(oktoClient, transferParams);
+      }
       setJobId(jobId);
       await handleGetOrderHistory(jobId);
       showModal("jobId");
@@ -269,7 +284,16 @@ function TransferNFT() {
 
     try {
       const transferParams = validateFormData();
-      const userOp = await nftTransferUserOp(oktoClient, transferParams);
+      let userOp;
+      if (selectedChain && sponsorshipEnabled) {
+        userOp = await nftTransfer(
+          oktoClient,
+          transferParams,
+          feePayer as Address
+        );
+      } else {
+        userOp = await nftTransfer(oktoClient, transferParams);
+      }
       setUserOp(userOp);
       showModal("unsignedOp");
       console.log("UserOp:", userOp);
@@ -572,7 +596,7 @@ function TransferNFT() {
       {renderModals()}
 
       <button
-        onClick={() => route.push("/")}
+        onClick={() => route.push("/home")}
         className="w-fit py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black mb-8"
       >
         Home
@@ -628,6 +652,23 @@ function TransferNFT() {
                 ? "Gas sponsorship is available ✅"
                 : "⚠️ Sponsorship is not activated for this chain, the user must hold native tokens to proceed with the transfer. You can get the token from the respective faucets"}
             </p>
+          )}
+
+          {/* Feepayer address  */}
+          {selectedChain && sponsorshipEnabled && (
+            <div className="w-full mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Feepayer Address
+              </label>
+              <input
+                type="text"
+                className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                value={feePayer}
+                onChange={(e) => setFeePayer(e.target.value)}
+                placeholder="0x..."
+                disabled={isLoading}
+              />
+            </div>
           )}
 
           {/* NFT Selection */}

@@ -1,15 +1,12 @@
 "use client";
-import React, { use, useEffect, useMemo, useContext, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
-import { LoginButton } from "@/app/components/LoginButton";
-import GetButton from "@/app/components/GetButton";
-import { getAccount, getChains, getOrdersHistory, getPortfolio, getPortfolioActivity, getPortfolioNFT, getTokens, useOkto, useOktoWebView } from '@okto_web3/react-sdk';
-import Link from "next/link";
+
+import { useOkto } from "@okto_web3/react-sdk";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { LoginButton } from "./components/LoginButton";
+import { useSession } from "next-auth/react";
 import { ConfigContext } from "@/app/components/providers";
 import { STORAGE_KEY } from "./constants";
-import SignComponent from "./components/SignComponent";
-import ModalWithOTP from "./components/EmailWhatsappAuth";
-import JWTAuthModal from "./components/JWTAuthentication";
 
 // Add type definitions
 interface Config {
@@ -23,54 +20,51 @@ interface ConfigContextType {
   setConfig: React.Dispatch<React.SetStateAction<Config>>;
 }
 
-export default function Home() {
+type TabType = "google" | "email" | "whatsapp" | "jwt";
+
+export default function LoginPage() {
   const { data: session } = useSession();
   const oktoClient = useOkto();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabType>("google");
   const { config, setConfig } = useContext<ConfigContextType>(ConfigContext);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [userSWA, setUserSWA] = useState("not signed in");
 
-  const [isJWTModalOpen, setIsJWTModalOpen] = useState(false);
-  const [jwtTokenInput, setJwtTokenInput] = useState("");
+  // Initialize states with empty values
+  const [email, setEmail] = useState("");
+  const [phoneNo, setPhoneNo] = useState("");
+  const [jwt, setJwt] = useState("");
+  const [otp, setOtp] = useState("");
+  const [token, setToken] = useState("");
+  const [status, setStatus] = useState("send_OTP");
+
+  // Load values from localStorage after component mounts
+  useEffect(() => {
+    setEmail(localStorage.getItem("okto_email") || "");
+    setPhoneNo(localStorage.getItem("okto_phoneNo") || "");
+    setJwt(localStorage.getItem("okto_jwt") || "");
+    setToken(localStorage.getItem("okto_token") || "");
+    setStatus(localStorage.getItem("okto_status") || "send_OTP");
+  }, []);
 
   //@ts-ignore
   const idToken = useMemo(() => (session ? session.id_token : null), [session]);
 
-  async function handleAuthenticate(): Promise<any> {
-    if (!idToken) {
-      return { result: false, error: "No google login" };
-    }
-    const user = await oktoClient.loginUsingOAuth(
-      {
-        idToken: idToken,
-        provider: "google",
-      },
-      (session: any) => {
-        // Store the session info securely
-        console.log("session", session);
-        localStorage.setItem("okto_session_info", JSON.stringify(session));
-        setUserSWA(session.userSWA);
-      }
-    );
-    console.log("authenticated", user);
-    return JSON.stringify(user);
-  }
-
-  async function handleLogout() {
-    try {
-      oktoClient.sessionClear();
-      signOut();
-      return { result: "logout success" };
-    } catch (error) {
-      return { result: "logout failed" };
-    }
-  }
-
   useEffect(() => {
-    if (idToken) {
-      handleAuthenticate();
+    console.log(oktoClient.isLoggedIn());
+    console.log(idToken);
+    if (oktoClient.isLoggedIn()) {
+      router.push("/home");
+      return;
     }
-  }, [idToken]);
+
+    if (idToken) {
+      handleGoogleLogin(idToken);
+    }
+
+    // const storedToken = localStorage.getItem("googleIdToken");
+    // if (storedToken) handleGoogleLogin(storedToken);
+  }, [oktoClient, idToken]);
 
   // Update the handleConfigUpdate function
   const handleConfigUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -100,203 +94,401 @@ export default function Home() {
     setIsConfigOpen(false);
   };
 
-  const getSessionInfo = async () => {
-    const session = localStorage.getItem("okto_session_info");
-    const sessionInfo = JSON.parse(session || "{}");
-    return { result: sessionInfo };
-  };
-
-  async function handleWebViewAuthentication() {
-    console.log("Web-view triggered..");
+  const handleGoogleLogin = async (idToken: string) => {
     try {
-      const result = await oktoClient.authenticateWithWebView({
-        onClose: () => {
-          console.log('WebView was closed');
+      const user = await oktoClient.loginUsingOAuth(
+        { idToken, provider: "google" },
+        (session: any) => {
+          localStorage.setItem("okto_session", JSON.stringify(session));
         }
-      });
-      console.log('Authentication result:', result);
+      );
+      router.push("/home");
     } catch (error) {
-      console.error('Authentication failed:', error);
-    }
-  }
-
-  const { isModalOpen, authenticate } = useOktoWebView();
-
-  const handleAuthenticateWebView = async () => {
-    try {
-      const result = await authenticate();
-      console.log('Authentication successful:', result);
-    } catch (error) {
-      console.error('Authentication failed:', error);
+      console.error("Authentication failed:", error);
+      localStorage.removeItem("googleIdToken");
     }
   };
 
-  async function handleLoginUsingGoogle() {
-    const result = oktoClient.loginUsingSocial('google');
-    console.log("Google login result:", result);
-  }
+  const handleEmailAction = async () => {
+    try {
+      if (!email) return alert("Enter a valid email");
+
+      if (status === "send_OTP") {
+        const res = await oktoClient.sendOTP(email, "email");
+        setToken(res.token);
+        setStatus("verify_OTP");
+        console.log("OTP sent:", res);
+      } else if (status === "resend_OTP") {
+        const res = await oktoClient.resendOTP(email, token, "email");
+        setToken(res.token);
+        setStatus("verify_OTP");
+        console.log("OTP resent:", res);
+      } else if (status === "verify_OTP") {
+        const res = await oktoClient.loginUsingEmail(
+          email,
+          otp,
+          token,
+          (session: any) => {
+            localStorage.setItem("okto_session", JSON.stringify(session));
+          }
+        );
+        console.log("OTP verified:", res);
+
+        router.push("/home");
+      }
+    } catch (err) {
+      console.error("Email login error:", err);
+    }
+  };
+
+  const handleWhatsappAction = async () => {
+    try {
+      if (!phoneNo) return alert("Enter a valid phone number");
+
+      if (status === "send_OTP") {
+        const res = await oktoClient.sendOTP(phoneNo, "whatsapp");
+        setToken(res.token);
+        setStatus("verify_OTP");
+        console.log("OTP sent:", res);
+      } else if (status === "resend_OTP") {
+        const res = await oktoClient.resendOTP(phoneNo, token, "whatsapp");
+        setToken(res.token);
+        setStatus("verify_OTP");
+        console.log("OTP resent:", res);
+      } else if (status === "verify_OTP") {
+        const res = await oktoClient.loginUsingWhatsApp(
+          phoneNo,
+          otp,
+          token,
+          (session: any) => {
+            localStorage.setItem("okto_session", JSON.stringify(session));
+          }
+        );
+        console.log("OTP verified:", res);
+
+        router.push("/home");
+      }
+    } catch (err) {
+      console.error("Whatsapp login error:", err);
+    }
+  };
+
+  const handleJwtAction = async () => {
+    try {
+      if (!jwt) return alert("Enter a valid Jwt token");
+
+      const res = await oktoClient.loginUsingJWTAuthentication(
+        jwt,
+        (session: any) => {
+          localStorage.setItem("okto_session", JSON.stringify(session));
+        }
+      );
+      console.log("JWT login response:", res);
+
+      router.push("/home");
+    } catch (err) {
+      console.error("Whatsapp login error:", err);
+    }
+  };
 
   return (
-    <main className="flex min-h-screen flex-col items-center space-y-6 p-12 bg-violet-200">
-      <div className="text-black font-bold text-3xl mb-8">Okto v2 SDK</div>
+    <main className="min-h-[90vh] bg-gray-900 flex flex-col items-center justify-center p-6 md:p-12">
+      {/* Config Button and Form */}
+      <div className="bg-black/50 border border-gray-800 rounded-lg shadow-xl p-6 w-full max-w-4xl mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-white">Configuration</h2>
+          <button
+            onClick={() => setIsConfigOpen(!isConfigOpen)}
+            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-lg hover:bg-violet-700 transition-colors"
+          >
+            {isConfigOpen ? "Close" : "Update"}
+          </button>
+        </div>
 
-      {/* Config Button */}
+        {!isConfigOpen && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-sm text-gray-400">
+              <p className="flex items-center">
+                <span>Environment:</span>
+                <span className="text-white ml-2">{config.environment}</span>
+              </p>
+            </div>
+            <div className="text-sm text-gray-400">
+              <p className="flex items-center">
+                <span>Client Private Key:</span>
+                <span className="text-white ml-2">
+                  {config.clientPrivateKey ? "••••••••" : "Not set"}
+                </span>
+              </p>
+            </div>
+            <div className="text-sm text-gray-400">
+              <p className="flex items-center">
+                <span>Client SWA:</span>
+                <span className="text-white ml-2">
+                  {config.clientSWA ? "••••••••" : "Not set"}
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isConfigOpen && (
+          <form onSubmit={handleConfigUpdate}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Environment
+                </label>
+                <select
+                  name="environment"
+                  defaultValue={config.environment}
+                  className="w-full p-2 text-sm border border-gray-700 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                >
+                  <option value="sandbox">Sandbox</option>
+                  <option value="staging">Staging</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Client Private Key
+                </label>
+                <input
+                  type="text"
+                  required
+                  name="clientPrivateKey"
+                  placeholder="Enter your client private key"
+                  className="w-full p-2 text-sm border border-gray-700 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Client SWA
+                </label>
+                <input
+                  type="text"
+                  name="clientSWA"
+                  defaultValue={config.clientSWA}
+                  className="w-full p-2 text-sm border border-gray-700 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={handleResetConfig}
+                className="px-4 py-2 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="w-full max-w-md mb-6">
+        <div className="flex border-b border-gray-700">
+          <button
+            onClick={() => setActiveTab("google")}
+            className={`flex-1 py-2 px-4 text-center ${
+              activeTab === "google"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-300"
+            }`}
+          >
+            Google
+          </button>
+          <button
+            onClick={() => setActiveTab("email")}
+            className={`flex-1 py-2 px-4 text-center ${
+              activeTab === "email"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-300"
+            }`}
+          >
+            Email
+          </button>
+          <button
+            onClick={() => setActiveTab("whatsapp")}
+            className={`flex-1 py-2 px-4 text-center ${
+              activeTab === "whatsapp"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-300"
+            }`}
+          >
+            WhatsApp
+          </button>
+          <button
+            onClick={() => setActiveTab("jwt")}
+            className={`flex-1 py-2 px-4 text-center ${
+              activeTab === "jwt"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-300"
+            }`}
+          >
+            JWT
+          </button>
+        </div>
+      </div>
+
+      {/* Main Authentication Box */}
+      <div className="bg-black border border-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+        <h1 className="text-3xl font-bold text-white text-center mb-8">
+          Welcome to Okto
+        </h1>
+
+        {/* Tab Content */}
+        <div className="space-y-6">
+          {/* Google Login */}
+          {activeTab === "google" && (
+            <div className="flex flex-col items-center space-y-4">
+              <p className="text-gray-400 text-center">
+                Sign in with your Google account
+              </p>
+              <LoginButton />
+            </div>
+          )}
+
+          {/* Email Login */}
+          {activeTab === "email" && (
+            <div className="flex flex-col space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your Email"
+                className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={status === "verify_OTP"}
+              />
+
+              {status === "verify_OTP" && (
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter OTP"
+                  className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              )}
+
+              <button
+                onClick={handleEmailAction}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+              >
+                {status === "verify_OTP" ? "Verify OTP" : "Send OTP"}
+              </button>
+
+              {status === "verify_OTP" && (
+                <button
+                  type="button"
+                  onClick={() => setStatus("resend_OTP")}
+                  className="text-sm text-blue-400 hover:underline text-center w-full"
+                >
+                  Resend OTP
+                </button>
+              )}
+
+              <p className="text-gray-400 text-sm text-center">
+                {status === "verify_OTP"
+                  ? "Enter the OTP sent to your email"
+                  : "We'll send you a login code"}
+              </p>
+            </div>
+          )}
+
+          {/* WhatsApp Login */}
+          {activeTab === "whatsapp" && (
+            <div className="flex flex-col space-y-4">
+              <input
+                type="tel"
+                value={phoneNo}
+                onChange={(e) => setPhoneNo(e.target.value)}
+                placeholder="Enter your Phone Number"
+                className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={status === "verify_OTP"}
+              />
+
+              {status === "verify_OTP" && (
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter OTP"
+                  className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              )}
+
+              <button
+                onClick={handleWhatsappAction}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+              >
+                {status === "verify_OTP" ? "Verify OTP" : "Send OTP"}
+              </button>
+
+              {status === "verify_OTP" && (
+                <button
+                  type="button"
+                  onClick={() => setStatus("resend_OTP")}
+                  className="text-sm text-blue-400 hover:underline text-center w-full"
+                >
+                  Resend OTP
+                </button>
+              )}
+
+              <p className="text-gray-400 text-sm text-center">
+                {status === "verify_OTP"
+                  ? "Enter the OTP sent to your phone number"
+                  : "We'll send you a login code"}
+              </p>
+            </div>
+          )}
+
+          {/* JWT Token Login */}
+          {activeTab === "jwt" && (
+            <div className="flex flex-col space-y-4">
+              <p className="text-gray-300 text-sm">
+                Format:{" "}
+                <code className="bg-gray-800 px-2 py-1 rounded text-blue-300">
+                  Bearer &lt;jwt-token&gt;
+                </code>
+              </p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={jwt}
+                  onChange={(e) => setJwt(e.target.value)}
+                  placeholder="Enter your Jwt Token"
+                  className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <button
+                onClick={handleJwtAction}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+              >
+                Verify JWT
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Optional direct navigation */}
       <button
-        onClick={() => setIsConfigOpen(!isConfigOpen)}
-        className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+        onClick={() => router.push("/home")}
+        className="mt-4 px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition"
       >
-        {isConfigOpen ? "Close Config" : "Update Config"}
+        Go to homepage
       </button>
-
-      {/* Current Config Display */}
-      {!isConfigOpen && (
-        <div className="w-full max-w-lg bg-white p-4 rounded-lg shadow-md">
-          <h3 className="font-medium text-gray-700 mb-2">
-            Current Configuration:
-          </h3>
-          <div className="text-sm text-gray-600">
-            <p>Environment: {config.environment}</p>
-            <p>
-              Client Private Key:{" "}
-              {config.clientPrivateKey ? "••••••••" : "Not set"}
-            </p>
-            <p>Client SWA: {config.clientSWA ? "••••••••" : "Not set"}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Config Form */}
-      {isConfigOpen && (
-        <form
-          onSubmit={handleConfigUpdate}
-          className="w-full max-w-lg bg-white p-6 rounded-lg shadow-md space-y-4"
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Environment
-            </label>
-            <select
-              name="environment"
-              defaultValue={config.environment}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
-            >
-              <option value="sandbox">Sandbox</option>
-              <option value="staging">Staging</option>
-              {/* <option value="production">Production</option> */}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Client Private Key
-            </label>
-            <input
-              type="text"
-              name="clientPrivateKey"
-              defaultValue={config.clientPrivateKey}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Client SWA
-            </label>
-            <input
-              type="text"
-              name="clientSWA"
-              defaultValue={config.clientSWA}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-            >
-              Save Configuration
-            </button>
-            <button
-              type="button"
-              onClick={handleResetConfig}
-              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-            >
-              Reset to Default
-            </button>
-          </div>
-        </form>
-      )}
-      <div className="w-full max-w-lg bg-white p-4 rounded-lg shadow-md">
-        <h3 className="font-medium text-gray-700 mb-2">Details:</h3>
-        <div className="text-sm text-gray-600">
-          <p>{`UserSWA: ${userSWA}`}</p>
-          <p>{`ClientSWA: ${config.clientSWA}`}</p>
-        </div>
-      </div>
-      <ModalWithOTP
-        setUserSWA={setUserSWA}
-      />
-      <div className="grid grid-cols-2 gap-4 w-full max-w-lg mt-8">
-        <GetButton title="Onboarding WebView" apiFn={handleAuthenticateWebView} checkLogin={false} />
-        <GetButton title="Authenticate GAuth" apiFn={handleLoginUsingGoogle} checkLogin={false} />
-        <GetButton title="Authenticate with JWT" apiFn={() => setIsJWTModalOpen(true)} checkLogin={false} />
-        <JWTAuthModal
-          isOpen={isJWTModalOpen}
-          onClose={() => setIsJWTModalOpen(false)}
-          setUserSWA={setUserSWA}
-        />
-        {/* <LoginButton /> */}
-        {/* <GetButton title="Okto Authenticate" apiFn={handleAuthenticate} /> */}
-        <GetButton title="Show Session Info" apiFn={getSessionInfo} />
-        <GetButton title="Okto Log out" apiFn={handleLogout} />
-        <GetButton title="getAccount" apiFn={getAccount} />
-        <GetButton title="getChains" apiFn={getChains} />
-        <GetButton title="getOrdersHistory" apiFn={getOrdersHistory} />
-        <GetButton title="getPortfolio" apiFn={getPortfolio} />
-        <GetButton title="getPortfolioActivity" apiFn={getPortfolioActivity} />
-        <GetButton title="getPortfolioNFT" apiFn={getPortfolioNFT} />
-        <GetButton title="getTokens" apiFn={getTokens} />
-      </div>
-
-      <div className="grid gap-4 w-full max-w-lg mt-8">
-        <SignComponent />
-      </div>
-
-      <Link
-        href="/transfer"
-        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Go to Transfer Token Page
-      </Link>
-
-      {/* <Link 
-        href="/createnft" 
-        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Go to Create NFT Page
-      </Link> */}
-
-      <Link
-        href="/transfernft"
-        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Go to Transfer NFT Page
-      </Link>
-
-      <Link
-        href="/evmrawtxn"
-        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Go to EVM Raw transaction
-      </Link>
-      {/* <Link
-        href="/aptosrawtxn"
-        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-      >
-        Go to APTOS Raw transaction
-      </Link> */}
     </main>
   );
 }
-
