@@ -1,7 +1,7 @@
 /** @format */
 
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Address,
   getOrdersHistory,
@@ -78,6 +78,7 @@ function TransferTokens() {
   const [selectedToken, setSelectedToken] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [recipient, setRecipient] = useState<string>("");
+  const [feePayer , setFeePayer] = useState<string>("");
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
   const [tokenBalance, setTokenBalance] = useState<{
     balance: string;
@@ -109,6 +110,7 @@ function TransferTokens() {
     setSelectedToken("");
     setAmount("");
     setRecipient("");
+    setFeePayer("");
     setUserOp(null);
     setSignedUserOp(null);
     setJobId(null);
@@ -120,6 +122,10 @@ function TransferTokens() {
 
   const validateFormData = () => {
     const token = tokens.find((t) => t.symbol === selectedToken);
+    if(selectedChain && sponsorshipEnabled) {
+      if (!feePayer || !feePayer.startsWith("0x"))
+        throw new Error("Please enter a valid feePayer address");
+    }
     if (!token) throw new Error("Please select a valid token");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0)
       throw new Error("Please enter a valid amount");
@@ -317,7 +323,12 @@ function TransferTokens() {
       const transferParams = validateFormData();
       // Note overher: you can directly import tokenTransfer from the @okto_web3/react-sdk
       // On doing so, you'll directly get the jobId and you won't have to follow the below code.
-      const userOp = await tokenTransfer(oktoClient, transferParams);
+      let userOp; 
+      if(selectedChain && sponsorshipEnabled) {
+       userOp = await tokenTransfer(oktoClient, transferParams, feePayer as Address);
+      } else {
+        userOp = await tokenTransfer(oktoClient, transferParams);
+      }
       const signedOp = await oktoClient.signUserOp(userOp);
       const jobId = await oktoClient.executeUserOp(signedOp);
 
@@ -340,7 +351,12 @@ function TransferTokens() {
 
     try {
       const transferParams = validateFormData();
-      const userOp = await tokenTransfer(oktoClient, transferParams);
+      let userOp; 
+      if(selectedChain && sponsorshipEnabled) {
+       userOp = await tokenTransfer(oktoClient, transferParams, feePayer as Address);
+      } else {
+        userOp = await tokenTransfer(oktoClient, transferParams);
+      }
       setUserOp(userOp);
       showModal("unsignedOp");
       console.log("UserOp:", userOp);
@@ -427,6 +443,23 @@ function TransferTokens() {
             ? "Gas sponsorship is available ✅"
             : "⚠️ Sponsorship is not activated for this chain, the user must hold native tokens to proceed with the transfer. You can get the token from the respective faucets"}
         </p>
+      )}
+
+      {/* Feepayer address  */}
+      {selectedChain && sponsorshipEnabled && (
+        <div>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Feepayer Address
+        </label>
+        <input
+          type="text"
+          className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white"
+          value={feePayer}
+          onChange={(e) => setFeePayer(e.target.value)}
+          placeholder="0x..."
+          disabled={isLoading}
+        />
+      </div>
       )}
 
       {/* Token Selection */}
@@ -545,7 +578,7 @@ function TransferTokens() {
             !selectedChain ||
             !selectedToken ||
             !amount ||
-            !recipient
+            !recipient 
           }
         >
           {isLoading ? "Processing..." : "Create Token Transfer UserOp"}
@@ -738,7 +771,7 @@ function TransferTokens() {
     <div className="w-full bg-gray-900 min-h-screen">
       <div className="flex flex-col w-full max-w-2xl mx-auto p-6 space-y-6 bg-gray-900 rounded-lg shadow-xl justify-center items-center">
         <button
-          onClick={() => navigate.push("/")}
+          onClick={() => navigate.push("/home")}
           className="w-fit py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black mb-8"
         >
           Home

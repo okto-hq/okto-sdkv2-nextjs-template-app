@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useOkto, getAccount } from "@okto_web3/react-sdk";
 import { recoverMessageAddress } from "viem";
@@ -13,14 +15,18 @@ const SignComponent: React.FC<SignComponentProps> = () => {
   const [inputModalVisible, setInputModalVisible] = useState<boolean>(false);
   const [result, setResult] = useState<any>("");
   const [signType, setSignType] = useState<string>("");
-  const [currentAction, setCurrentAction] = useState<"message" | "typedData" | null>(null);
+  const [currentAction, setCurrentAction] = useState<
+    "message" | "typedData" | null
+  >(null);
   const [verificationResult, setVerificationResult] = useState<string>("");
 
+  // Function to handle opening the input modal
   const handleOpenInputModal = (type: "message" | "typedData"): void => {
     setCurrentAction(type);
     setInputModalVisible(true);
   };
 
+  // Function to handle signing a message
   const handleSignMessage = async (): Promise<void> => {
     try {
       const signature = await oktoClient.signMessage(message);
@@ -37,6 +43,7 @@ const SignComponent: React.FC<SignComponentProps> = () => {
     }
   };
 
+  // Function to handle signing typed data
   const handleSignTypedData = async (): Promise<void> => {
     try {
       const parsedData = JSON.parse(typedData);
@@ -68,7 +75,9 @@ const SignComponent: React.FC<SignComponentProps> = () => {
       console.log("Recovered Address:", recoveredAddress);
 
       const accountResponse = await getAccount(oktoClient);
-      const evmAccount = accountResponse.find((item: any) => item.caipId.startsWith("eip155:"));
+      const evmAccount = accountResponse.find((item: any) =>
+        item.caipId.startsWith("eip155:")
+      );
       const evmAddress = evmAccount?.address?.toLowerCase();
 
       if (!evmAddress) {
@@ -76,9 +85,13 @@ const SignComponent: React.FC<SignComponentProps> = () => {
       }
 
       if (recoveredAddress.toLowerCase() === evmAddress) {
-        setVerificationResult(`✅ Valid Signature\nEVM Address: ${recoveredAddress}`);
+        setVerificationResult(
+          `✅ Valid Signature\nEVM Address: ${recoveredAddress}`
+        );
       } else {
-        setVerificationResult(`❌ Signature does not match known EVM address.\nRecovered: ${recoveredAddress}`);
+        setVerificationResult(
+          `❌ Signature does not match known EVM address.\nRecovered: ${recoveredAddress}`
+        );
       }
     } catch (error: any) {
       console.error("Verification Error:", error);
@@ -87,21 +100,23 @@ const SignComponent: React.FC<SignComponentProps> = () => {
   };
 
   return (
-    <div className="w-full">
+    <div className="bg-white">
+      <h2 className="text-violet-900 font-semibold text-2xl mb-4">Sign Data</h2>
+
       {/* Main Buttons */}
-      <div className="w-full grid grid-cols-2 justify-center items-center md:flex-row gap-4">
+      <div className="flex flex-col justify-center items-center md:flex-row gap-4">
         <button
           onClick={() => handleOpenInputModal("message")}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          className="w-48 p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         >
           Sign Message
         </button>
-        {/* <button
+        <button
           onClick={() => handleOpenInputModal("typedData")}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          className="w-48 p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
         >
           Sign Typed Data
-        </button> */}
+        </button>
       </div>
 
       {/* Input Modal */}
@@ -115,23 +130,27 @@ const SignComponent: React.FC<SignComponentProps> = () => {
             </h2>
 
             {currentAction === "message" ? (
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Enter message..."
-                className="w-full px-4 py-2 border rounded-lg mb-4"
-                autoFocus
-              />
+              <div>
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Enter message..."
+                  className="w-full px-4 py-2 border rounded-lg mb-4"
+                  autoFocus
+                />
+              </div>
             ) : (
-              <textarea
-                rows={5}
-                value={typedData}
-                onChange={(e) => setTypedData(e.target.value)}
-                placeholder='{"domain":{}, "types":{}, "message":{}}'
-                className="w-full p-2 border rounded-lg mb-4"
-                autoFocus
-              />
+              <div>
+                <textarea
+                  rows={5}
+                  value={typedData}
+                  onChange={(e) => setTypedData(e.target.value)}
+                  placeholder='{"domain":{}, "types":{}, "message":{}}'
+                  className="w-full p-2 border rounded-lg mb-4"
+                  autoFocus
+                />
+              </div>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
@@ -163,7 +182,7 @@ const SignComponent: React.FC<SignComponentProps> = () => {
             <h2 className="text-lg font-semibold text-white mb-4">
               {signType} Result
             </h2>
-            <pre className="whitespace-pre-wrap break-words bg-gray-900 p-4 rounded text-white mb-4">
+            <pre className="whitespace-pre-wrap break-words bg-gray-900 p-4 rounded text-white">
               <CopyButton text={result} />
               {result}
             </pre>
