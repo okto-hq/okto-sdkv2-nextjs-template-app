@@ -127,6 +127,9 @@ export default function Home() {
               apiFn={getTokens}
               tag="Ensure the token is whitelisted"
             />
+            <button className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors" onClick={() => router.push("/rawread")}>
+              Raw Read
+            </button>
           </div>
         </div>
 
