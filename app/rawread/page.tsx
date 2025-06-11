@@ -145,7 +145,7 @@ function RawRead() {
           Read data from smart contracts.{" "}
           <a
             className="underline text-indigo-300"
-            href="https://docs.okto.tech/docs/react-sdk/rawRead"
+            href="https://docs.okto.tech/docs/nextjs-sdk/rawRead"
             target="_blank"
             rel="noopener noreferrer"
           >
