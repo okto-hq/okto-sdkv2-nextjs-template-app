@@ -1,6 +1,6 @@
 "use client";
 
-import { useOkto } from "@okto_web3/react-sdk";
+import { useOkto, useOktoWebView } from "@okto_web3/react-sdk";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoginButton } from "./components/LoginButton";
@@ -20,7 +20,7 @@ interface ConfigContextType {
   setConfig: React.Dispatch<React.SetStateAction<Config>>;
 }
 
-type TabType = "google" | "email" | "whatsapp" | "jwt";
+type TabType = "google" | "email" | "whatsapp" | "jwt" | "webview";
 
 export default function LoginPage() {
   const { data: session } = useSession();
@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<TabType>("google");
   const { config, setConfig } = useContext<ConfigContextType>(ConfigContext);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const { isModalOpen, authenticate } = useOktoWebView();
 
   // Initialize states with empty values
   const [email, setEmail] = useState("");
@@ -191,6 +192,29 @@ export default function LoginPage() {
     }
   };
 
+  const handleWebview = async () => {
+    try {
+      const result = await authenticate({
+        onSuccess(data) {
+          console.log("login successfull. onSuccess function called", data);
+        },
+      });
+      console.log("Authentication successful:", result);
+      router.push("/home");
+    } catch (error) {
+      console.error("Authentication failed:", error);
+    }
+  };
+
+  const resetValues = async () => {
+    setEmail("");
+    setPhoneNo("");
+    setOtp("");
+    setJwt("");
+    setToken("");
+    setStatus("send_OTP");
+  };
+
   return (
     <main className="min-h-[90vh] bg-gray-900 flex flex-col items-center justify-center p-6 md:p-12">
       {/* Config Button and Form */}
@@ -298,7 +322,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md mb-6">
         <div className="flex border-b border-gray-700">
           <button
-            onClick={() => setActiveTab("google")}
+            onClick={() => {
+              setActiveTab("google");
+              resetValues();
+            }}
             className={`flex-1 py-2 px-4 text-center ${
               activeTab === "google"
                 ? "text-blue-500 border-b-2 border-blue-500"
@@ -308,7 +335,10 @@ export default function LoginPage() {
             Google
           </button>
           <button
-            onClick={() => setActiveTab("email")}
+            onClick={() => {
+              setActiveTab("email");
+              resetValues();
+            }}
             className={`flex-1 py-2 px-4 text-center ${
               activeTab === "email"
                 ? "text-blue-500 border-b-2 border-blue-500"
@@ -318,7 +348,10 @@ export default function LoginPage() {
             Email
           </button>
           <button
-            onClick={() => setActiveTab("whatsapp")}
+            onClick={() => {
+              setActiveTab("whatsapp");
+              resetValues();
+            }}
             className={`flex-1 py-2 px-4 text-center ${
               activeTab === "whatsapp"
                 ? "text-blue-500 border-b-2 border-blue-500"
@@ -328,7 +361,10 @@ export default function LoginPage() {
             WhatsApp
           </button>
           <button
-            onClick={() => setActiveTab("jwt")}
+            onClick={() => {
+              setActiveTab("jwt");
+              resetValues();
+            }}
             className={`flex-1 py-2 px-4 text-center ${
               activeTab === "jwt"
                 ? "text-blue-500 border-b-2 border-blue-500"
@@ -336,6 +372,19 @@ export default function LoginPage() {
             }`}
           >
             JWT
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("webview");
+              resetValues();
+            }}
+            className={`flex-1 py-2 px-4 text-center ${
+              activeTab === "webview"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : "text-gray-400 hover:text-gray-300"
+            }`}
+          >
+            Onboarding Modal
           </button>
         </div>
       </div>
@@ -367,7 +416,6 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your Email"
                 className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={status === "verify_OTP"}
               />
 
               {status === "verify_OTP" && (
@@ -408,13 +456,22 @@ export default function LoginPage() {
           {/* WhatsApp Login */}
           {activeTab === "whatsapp" && (
             <div className="flex flex-col space-y-4">
+              <p className="text-gray-300 text-sm">
+                Format:{" "}
+                <code className="bg-gray-800 px-2 py-1 rounded text-blue-300">
+                  &lt;10-digit number&gt;
+                </code>{" "}
+                <br />
+                <span className="text-gray-400 text-xs">
+                  Note: Country code IN is used by default
+                </span>
+              </p>
               <input
                 type="tel"
                 value={phoneNo}
                 onChange={(e) => setPhoneNo(e.target.value)}
                 placeholder="Enter your Phone Number"
                 className="w-full p-3 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={status === "verify_OTP"}
               />
 
               {status === "verify_OTP" && (
@@ -476,6 +533,21 @@ export default function LoginPage() {
                 className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
               >
                 Verify JWT
+              </button>
+            </div>
+          )}
+
+          {/* Okto Onboarding Modal  */}
+          {activeTab === "webview" && (
+            <div className="flex flex-col items-center space-y-4">
+              <p className="text-gray-400 text-center">
+                Sign in with Okto Onboarding Modal
+              </p>
+              <button
+                onClick={handleWebview}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+              >
+                Onboarding Modal
               </button>
             </div>
           )}
