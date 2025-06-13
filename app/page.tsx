@@ -270,6 +270,7 @@ export default function LoginPage() {
                 >
                   <option value="sandbox">Sandbox</option>
                   <option value="staging">Staging</option>
+                  <option value="production">Production</option>
                 </select>
               </div>
 
