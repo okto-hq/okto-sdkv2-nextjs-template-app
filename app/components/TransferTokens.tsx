@@ -78,7 +78,7 @@ function TransferTokens() {
   const [selectedToken, setSelectedToken] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [recipient, setRecipient] = useState<string>("");
-  const [feePayer , setFeePayer] = useState<string>("");
+  const [feePayer, setFeePayer] = useState<string>("");
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
   const [tokenBalance, setTokenBalance] = useState<{
     balance: string;
@@ -122,7 +122,7 @@ function TransferTokens() {
 
   const validateFormData = () => {
     const token = tokens.find((t) => t.symbol === selectedToken);
-    if(selectedChain && sponsorshipEnabled) {
+    if (selectedChain && sponsorshipEnabled) {
       if (!feePayer || !feePayer.startsWith("0x"))
         throw new Error("Please enter a valid feePayer address");
     }
@@ -323,9 +323,13 @@ function TransferTokens() {
       const transferParams = validateFormData();
       // Note overher: you can directly import tokenTransfer from the @okto_web3/react-sdk
       // On doing so, you'll directly get the jobId and you won't have to follow the below code.
-      let userOp; 
-      if(selectedChain && sponsorshipEnabled) {
-       userOp = await tokenTransfer(oktoClient, transferParams, feePayer as Address);
+      let userOp;
+      if (selectedChain && sponsorshipEnabled) {
+        userOp = await tokenTransfer(
+          oktoClient,
+          transferParams,
+          feePayer as Address
+        );
       } else {
         userOp = await tokenTransfer(oktoClient, transferParams);
       }
@@ -351,9 +355,13 @@ function TransferTokens() {
 
     try {
       const transferParams = validateFormData();
-      let userOp; 
-      if(selectedChain && sponsorshipEnabled) {
-       userOp = await tokenTransfer(oktoClient, transferParams, feePayer as Address);
+      let userOp;
+      if (selectedChain && sponsorshipEnabled) {
+        userOp = await tokenTransfer(
+          oktoClient,
+          transferParams,
+          feePayer as Address
+        );
       } else {
         userOp = await tokenTransfer(oktoClient, transferParams);
       }
@@ -441,25 +449,25 @@ function TransferTokens() {
         <p className="mt-2 text-sm text-gray-300 border border-indigo-700 p-2 my-2">
           {sponsorshipEnabled
             ? "Gas sponsorship is available ✅"
-            : "⚠️ Sponsorship is not activated for this chain, the user must hold native tokens to proceed with the transfer. You can get the token from the respective faucets"}
+            : "⚠️ Sponsorship is not activated for this chain, the user must hold native tokens to proceed with the transfer. You can get the token from the respective faucets if using testnets"}
         </p>
       )}
 
       {/* Feepayer address  */}
       {selectedChain && sponsorshipEnabled && (
         <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Feepayer Address
-        </label>
-        <input
-          type="text"
-          className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white"
-          value={feePayer}
-          onChange={(e) => setFeePayer(e.target.value)}
-          placeholder="0x..."
-          disabled={isLoading}
-        />
-      </div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Feepayer Address
+          </label>
+          <input
+            type="text"
+            className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white"
+            value={feePayer}
+            onChange={(e) => setFeePayer(e.target.value)}
+            placeholder="0x..."
+            disabled={isLoading}
+          />
+        </div>
       )}
 
       {/* Token Selection */}
@@ -578,7 +586,7 @@ function TransferTokens() {
             !selectedChain ||
             !selectedToken ||
             !amount ||
-            !recipient 
+            !recipient
           }
         >
           {isLoading ? "Processing..." : "Create Token Transfer UserOp"}

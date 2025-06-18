@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useContext } from "react";
 import { signOut } from "next-auth/react";
 import GetButton from "@/app/components/GetButton";
 import {
@@ -16,6 +16,8 @@ import {
 import Link from "next/link";
 import SignComponent from "../components/SignComponent";
 import { useRouter } from "next/navigation";
+import SessionInfoModal from "../components/SessionInfoModal";
+import { ConfigContext } from "../components/providers";
 
 export default function Home() {
   const oktoClient = useOkto();
@@ -23,6 +25,7 @@ export default function Home() {
   const isloggedIn = oktoClient.isLoggedIn();
   const userSWA = oktoClient.userSWA;
   const clientSWA = oktoClient.clientSWA;
+  const { config } = useContext(ConfigContext);
   const router = useRouter();
 
   async function handleLogout() {
@@ -43,11 +46,12 @@ export default function Home() {
     }
   }
 
-  const getSessionInfo = async () => {
+  async function getSessionInfo() {
     const session = localStorage.getItem("okto_session");
     const sessionInfo = JSON.parse(session || "{}");
-    return { result: sessionInfo };
-  };
+    const oktoAuthToken = await oktoClient.getAuthorizationToken();
+    return { sessionInfo: sessionInfo, oktoAuthToken: oktoAuthToken };
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-violet-100 to-violet-200 py-12 px-4 sm:px-6 lg:px-8">
@@ -60,7 +64,7 @@ export default function Home() {
           <h2 className="text-violet-900 font-bold text-2xl">User Details</h2>
           <pre className="whitespace-pre-wrap break-words bg-white p-6 rounded-xl text-gray-800 w-full border border-violet-200 shadow-lg">
             {isloggedIn
-              ? `Logged in \n userSWA: ${userSWA} \n clientSWA: ${clientSWA}`
+              ? `Logged in \n userSWA: ${userSWA} \n clientSWA: ${clientSWA} \n environment: ${config.environment}`
               : "not signed in"}
           </pre>
         </div>
@@ -71,7 +75,7 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <GetButton title="Okto Log out" apiFn={handleLogout} tag="" />
-            <GetButton
+            <SessionInfoModal
               title="Show Session Info"
               apiFn={getSessionInfo}
               tag=""
@@ -127,7 +131,10 @@ export default function Home() {
               apiFn={getTokens}
               tag="Ensure the token is whitelisted"
             />
-            <button className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors" onClick={() => router.push("/rawread")}>
+            <button
+              className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              onClick={() => router.push("/rawread")}
+            >
               Raw Read
             </button>
           </div>
